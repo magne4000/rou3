@@ -84,6 +84,18 @@ type TriePos = number | string;
 // Regex to fold "expr+K" + n into "expr+(K+n)" — pre-compiled for performance.
 const _posAddRx = /^(.+)\+(\d+)$/;
 
+// Use a switch(charCodeAt) over an if/else startsWith chain when there are at
+// least this many distinct first characters among siblings.  Micro-benchmarks
+// show the switch is slower for 2 distinct chars but faster from 3 onwards.
+const SWITCH_THRESHOLD = 3;
+
+// Use an O(1) map lookup for static routes once there are at least this many
+// entries.  Below the threshold a short if/else chain with string equality is
+// equally fast (V8 branch-prediction makes short chains very cheap); above it
+// the map pays off and also prevents V8's AST recursion limit from being hit
+// on large route tables (> ~10 k routes).
+const STATIC_MAP_THRESHOLD = 10;
+
 // Add n to a trie position. Folds consecutive numeric suffixes for clean output.
 function posAdd(pos: TriePos, n: number): TriePos {
   if (n === 0) return pos;
@@ -140,9 +152,15 @@ function compileTrieNode(
     }
   }
 
-  // 2. Static children – build an if / else-if chain keyed on char codes (trie branching).
+  // 2. Static children – group by first character, then emit a switch for O(1)
+  //    first-char dispatch followed by startsWith inside each case.
+  //    Using a switch instead of an if/else chain keeps the generated code flat
+  //    (no deeply-nested else branches) which avoids V8's parser recursion limit
+  //    when there are many siblings, and gives measurably faster dispatch.
   if (node.static) {
-    let staticCode = "";
+    // Collect entries after path compression.
+    type Entry = { fullKey: string; deepNode: Node<any>; childCode: string };
+    const entries: Entry[] = [];
     for (const key in node.static) {
       const child = node.static[key];
 
@@ -158,19 +176,55 @@ function compileTrieNode(
         deepNode = deepNode.static[nextKey];
       }
 
-      const childPos = posAdd(pos, 1 + fullKey.length);
-      const childCode = compileTrieNode(ctx, deepNode, params, childPos);
+      const childCode = compileTrieNode(ctx, deepNode, params, posAdd(pos, 1 + fullKey.length));
       if (childCode) {
-        // terminal=true when the child node may match as a route endpoint (methods),
-        // or when it has a wildcard/param child that can match an absent segment
-        // (path ends exactly at this node with nothing after).
-        const terminal = !!deepNode.methods || !!deepNode.wildcard || !!deepNode.param;
-        const check = compileStaticSegmentCheck(pos, fullKey, terminal);
-        staticCode += `${hasIf ? "else " : ""}if(${check}){${childCode}}`;
-        hasIf = true;
+        entries.push({ fullKey, deepNode, childCode });
       }
     }
-    if (staticCode) code += staticCode;
+
+    if (entries.length > 0) {
+      // Group by the first character of each key so we can emit a switch.
+      const byFirstChar = new Map<number, Entry[]>();
+      for (const entry of entries) {
+        const cc = entry.fullKey.charCodeAt(0);
+        let group = byFirstChar.get(cc);
+        if (!group) {
+          group = [];
+          byFirstChar.set(cc, group);
+        }
+        group.push(entry);
+      }
+
+      let staticCode = "";
+      if (byFirstChar.size >= SWITCH_THRESHOLD) {
+        // Multiple distinct first chars — switch for O(1) dispatch.
+        // pos points to the leading '/', so the first key char is at pos+1.
+        staticCode += `${hasIf ? "else " : ""}switch(p.charCodeAt(${posStr(posAdd(pos, 1))})){`;
+        for (const [charCode, group] of byFirstChar) {
+          staticCode += `case ${charCode}:{`;
+          let caseHasIf = false;
+          for (const { fullKey, deepNode, childCode } of group) {
+            const terminal = !!deepNode.methods || !!deepNode.wildcard || !!deepNode.param;
+            const check = compileStaticSegmentCheck(pos, fullKey, terminal);
+            staticCode += `${caseHasIf ? "else " : ""}if(${check}){${childCode}}`;
+            caseHasIf = true;
+          }
+          staticCode += `break;}`;
+        }
+        staticCode += `}`;
+        hasIf = true;
+      } else {
+        // All entries share the same first char — plain if-else chain is fine.
+        for (const { fullKey, deepNode, childCode } of entries) {
+          const terminal = !!deepNode.methods || !!deepNode.wildcard || !!deepNode.param;
+          const check = compileStaticSegmentCheck(pos, fullKey, terminal);
+          staticCode += `${hasIf ? "else " : ""}if(${check}){${childCode}}`;
+          hasIf = true;
+        }
+      }
+
+      code += staticCode;
+    }
   }
 
   // 3. Param child – extract the next path segment with indexOf / slice.
@@ -241,13 +295,36 @@ function compileTrieNode(
 function compileRouteMatch(ctx: CompilerContext): string {
   let code = "";
 
+  // Static routes: O(1) map lookup instead of an O(n) if/else chain.
+  // The else-if chain would grow without bound and hit V8's parser recursion
+  // limit above ~10k routes; a single object lookup scales to any route count.
+  // Below STATIC_MAP_THRESHOLD a short if/else chain with string equality is
+  // equally fast, so we fall back to it to avoid the map-object overhead.
   {
-    let hasIf = false;
+    let staticCount = 0;
     for (const key in ctx.router.static) {
-      const node = ctx.router.static[key];
-      if (node?.methods) {
-        code += `${hasIf ? "else " : ""}if(p===${JSON.stringify(key.replace(/\/$/, "") || "/")}){${compileMethodMatch(ctx, node.methods, [], -1)}}`;
-        hasIf = true;
+      if (ctx.router.static[key]?.methods) staticCount++;
+    }
+    if (staticCount >= STATIC_MAP_THRESHOLD) {
+      const mapRef = buildStaticMap(ctx);
+      if (mapRef) {
+        if (ctx.opts?.matchAll) {
+          // Iterate in insertion order so wildcard ("") and method-specific results
+          // are collected in the same relative order as the original if/else codegen.
+          code += `const _sp=${mapRef}[p];if(_sp){for(const _sk in _sp){if(_sk===""||_sk===m)r.unshift(_sp[_sk]);}}`;
+        } else {
+          code += `const _sp=${mapRef}[p];if(_sp){const _sr=_sp[m]??_sp[""];if(_sr)return _sr;}`;
+        }
+      }
+    } else {
+      // Fallback: short if/else chain — faster for very small route tables.
+      let hasIf = false;
+      for (const key in ctx.router.static) {
+        const node = ctx.router.static[key];
+        if (node?.methods) {
+          code += `${hasIf ? "else " : ""}if(p===${JSON.stringify(key.replace(/\/$/, "") || "/")}){${compileMethodMatch(ctx, node.methods, [], -1)}}`;
+          hasIf = true;
+        }
       }
     }
   }
@@ -368,4 +445,65 @@ function serializeData(ctx: CompilerContext, value: any): string {
     index = ctx.data.length - 1;
   }
   return `$${index}`;
+}
+
+// Build the static-route map used by compileRouteMatch.
+// In JIT mode an actual null-prototype object is pushed to ctx.data so it can be
+// passed as a function argument.  In toString mode a self-contained code expression
+// is pushed so it can be inlined as `const $N = ...`.
+// Returns the data reference string (e.g. "$0"), or null when there are no static routes.
+function buildStaticMap(ctx: CompilerContext): string | null {
+  if (!ctx.router.static) return null;
+
+  if (!ctx.compileToString) {
+    // JIT mode ---------------------------------------------------------------
+    const map: Record<string, Record<string, { data: any }>> = Object.create(null);
+    for (const key in ctx.router.static) {
+      const node = ctx.router.static[key];
+      if (!node?.methods) continue;
+      const path = key.replace(/\/$/, "") || "/";
+      const methodMap: Record<string, { data: any }> = Object.create(null);
+      for (const method in node.methods) {
+        const matchers = node.methods[method];
+        if (!matchers?.length) continue;
+        methodMap[method] = { data: matchers[0].data };
+      }
+      if (Object.keys(methodMap).length) map[path] = methodMap;
+    }
+    if (!Object.keys(map).length) return null;
+    const idx = ctx.data.length;
+    (ctx.data as any[]).push(map);
+    return `$${idx}`;
+  } else {
+    // toString mode ----------------------------------------------------------
+    // Serialize each data value first (so their $N refs have lower indices than
+    // the map itself), then build the map expression referencing those $N vars.
+    // Because ctx.data entries are emitted as a single `const $0=…,$1=…,…`
+    // declaration, later entries may reference earlier ones.
+    const pathEntries: string[] = [];
+    for (const key in ctx.router.static) {
+      const node = ctx.router.static[key];
+      if (!node?.methods) continue;
+      const path = key.replace(/\/$/, "") || "/";
+      const methodEntries: string[] = [];
+      for (const method in node.methods) {
+        const matchers = node.methods[method];
+        if (!matchers?.length) continue;
+        const dataRef = serializeData(ctx, matchers[0].data);
+        methodEntries.push(`${JSON.stringify(method)}:{data:${dataRef}}`);
+      }
+      if (methodEntries.length) {
+        pathEntries.push(`${JSON.stringify(path)}:{${methodEntries.join(",")}}`);
+      }
+    }
+    if (!pathEntries.length) return null;
+    // Object.assign copies only own enumerable properties from the object
+    // literal into the null-prototype target, so the result is a pure
+    // dictionary with no inherited keys — identical to what the JIT path
+    // builds at runtime.
+    const mapExpr = `Object.assign(Object.create(null),{${pathEntries.join(",")}})`;
+    const idx = ctx.data.length;
+    ctx.data.push(mapExpr);
+    return `$${idx}`;
+  }
 }
