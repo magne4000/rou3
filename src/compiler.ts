@@ -81,12 +81,15 @@ interface CompilerContext {
 // Trie position: either a literal character index (number) or a runtime JS expression (string).
 type TriePos = number | string;
 
+// Regex to fold "expr+K" + n into "expr+(K+n)" — pre-compiled for performance.
+const _posAddRx = /^(.+)\+(\d+)$/;
+
 // Add n to a trie position. Folds consecutive numeric suffixes for clean output.
 function posAdd(pos: TriePos, n: number): TriePos {
   if (n === 0) return pos;
   if (typeof pos === "number") return pos + n;
   // Simplify "expr+K" + n → "expr+(K+n)"
-  const m = /^(.+)\+(\d+)$/.exec(pos);
+  const m = _posAddRx.exec(pos);
   if (m) return `${m[1]}+${Number(m[2]) + n}`;
   return `${pos}+${n}`;
 }
@@ -210,6 +213,8 @@ function compileRouteMatch(ctx: CompilerContext): string {
     }
   }
 
+  // Trie traversal starts at position 0 — the character index before the leading '/'
+  // in the path string `p`. Each charCodeAt check advances through the string.
   const match = compileTrieNode(ctx, ctx.router.root, [], 0);
   if (match) {
     code += `const len=p.length;${match}`;
@@ -245,8 +250,9 @@ function compileMethodMatch(
     const matchers = methods[key];
     if (!matchers || matchers.length === 0) continue;
 
+    // absentParam filter: only include routes whose last param (index 2 = optional flag) is true.
     const filtered = absentParam
-      ? matchers.filter((m) => m.paramsMap?.[m.paramsMap.length - 1]?.[2])
+      ? matchers.filter((m) => m.paramsMap?.[m.paramsMap.length - 1]?.[2] /* optional */)
       : matchers;
     if (filtered.length === 0) continue;
 
@@ -277,7 +283,8 @@ function compileFinalMatch(
   const { paramsMap, paramsRegexp } = data;
   if (paramsMap && paramsMap.length > 0) {
     // For required (named) wildcards: ensure the wildcard segment is non-empty.
-    if (wildcardBoundary !== undefined && !paramsMap[paramsMap.length - 1][2]) {
+    // paramsMap entry: [segmentIndex, nameOrRegexp, optional(index 2)]
+    if (wildcardBoundary !== undefined && !paramsMap[paramsMap.length - 1][2] /* optional */) {
       conditions.push(`len>${posStr(wildcardBoundary)}`);
     }
     // Check regexp constraints using paramsMap-indexed param expressions.
