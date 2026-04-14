@@ -31,21 +31,8 @@ const findRoute = /* @__PURE__ */ (() => {
       if (m === "GET") return { data: $6 };
     }
     const len = p.length;
-    if (
-      p.charCodeAt(0) === 47 &&
-      p.charCodeAt(1) === 116 &&
-      p.charCodeAt(2) === 101 &&
-      p.charCodeAt(3) === 115 &&
-      p.charCodeAt(4) === 116 &&
-      (len === 5 || p.charCodeAt(5) === 47)
-    ) {
-      if (
-        p.charCodeAt(5) === 47 &&
-        p.charCodeAt(6) === 102 &&
-        p.charCodeAt(7) === 111 &&
-        p.charCodeAt(8) === 111 &&
-        (len === 9 || p.charCodeAt(9) === 47)
-      ) {
+    if (p.startsWith("/test", 0) && (len === 5 || p.charCodeAt(5) === 47)) {
+      if (p.startsWith("/foo", 5) && (len === 9 || p.charCodeAt(9) === 47)) {
         if (len === 9) {
           if (m === "GET") return { data: $7, params: { 0: undefined } };
         }
@@ -66,15 +53,13 @@ const findRoute = /* @__PURE__ */ (() => {
         if (len === _ep0) {
           if (m === "GET") return { data: $9, params: { id: _p0 } };
         } else if (
-          p.charCodeAt(_ep0) === 47 &&
-          p.charCodeAt(_ep0 + 1) === 121 &&
+          p.startsWith("/y", _ep0) &&
           (len === _ep0 + 2 || p.charCodeAt(_ep0 + 2) === 47)
         ) {
           if (len === _ep0 + 2) {
             if (m === "GET") return { data: $10, params: { idY: _p0 } };
           } else if (
-            p.charCodeAt(_ep0 + 2) === 47 &&
-            p.charCodeAt(_ep0 + 3) === 122 &&
+            p.startsWith("/z", _ep0 + 2) &&
             (len === _ep0 + 4 || p.charCodeAt(_ep0 + 4) === 47)
           ) {
             if (len === _ep0 + 4) {
@@ -83,18 +68,7 @@ const findRoute = /* @__PURE__ */ (() => {
           }
         }
       }
-    } else if (
-      p.charCodeAt(0) === 47 &&
-      p.charCodeAt(1) === 119 &&
-      p.charCodeAt(2) === 105 &&
-      p.charCodeAt(3) === 108 &&
-      p.charCodeAt(4) === 100 &&
-      p.charCodeAt(5) === 99 &&
-      p.charCodeAt(6) === 97 &&
-      p.charCodeAt(7) === 114 &&
-      p.charCodeAt(8) === 100 &&
-      (len === 9 || p.charCodeAt(9) === 47)
-    ) {
+    } else if (p.startsWith("/wildcard", 0) && (len === 9 || p.charCodeAt(9) === 47)) {
       if (m === "GET") return { data: $12, params: { _: p.slice(10) } };
     }
     if (m === "GET") return { data: $13, params: { _: p.slice(1) } };

@@ -98,17 +98,15 @@ function posStr(pos: TriePos): string {
   return String(pos);
 }
 
-// Build a JS expression that checks '/' at pos, then each character of key,
-// then a word-boundary (end of string OR next char is '/').
+// Build a JS expression that matches /key at pos and checks segment boundary.
+// Uses a single startsWith call rather than per-character charCodeAt comparisons,
+// which keeps the generated code compact and is equally fast.
 function compileStaticSegmentCheck(pos: TriePos, key: string): string {
-  const endPos = posAdd(pos, 1 + key.length);
-  const parts: string[] = [`p.charCodeAt(${posStr(pos)})===${47 /* '/' */}`];
-  for (let i = 0; i < key.length; i++) {
-    parts.push(`p.charCodeAt(${posStr(posAdd(pos, i + 1))})===${key.charCodeAt(i)}`);
-  }
-  // Boundary: path ends exactly here OR the next char is another '/'
-  parts.push(`(len===${posStr(endPos)}||p.charCodeAt(${posStr(endPos)})===${47})`);
-  return parts.join("&&");
+  const prefix = "/" + key;
+  const endPos = posAdd(pos, prefix.length);
+  // Boundary: path ends exactly here OR the next char is '/'
+  const boundaryCheck = `(len===${posStr(endPos)}||p.charCodeAt(${posStr(endPos)})===${47})`;
+  return `p.startsWith(${JSON.stringify(prefix)},${posStr(pos)})&&${boundaryCheck}`;
 }
 
 // Recursively compile a trie node into a JS code string.
