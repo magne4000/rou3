@@ -8,20 +8,32 @@
   } else if (p === "/foo/bar/baz") {
     if (m === "GET") r.unshift({ data: $2 });
   }
-  let s = p.split("/"),
-    l = s.length;
-  if (l > 1) {
-    if (s[1] === "foo") {
-      if (l > 3) {
-        if (s[3] === "baz") {
-          if (l === 4) {
-            if (m === "GET") r.unshift({ data: $3, params: { 0: s[2] } });
-          }
+  const len = p.length;
+  if (
+    p.charCodeAt(0) === 47 &&
+    p.charCodeAt(1) === 102 &&
+    p.charCodeAt(2) === 111 &&
+    p.charCodeAt(3) === 111 &&
+    (len === 4 || p.charCodeAt(4) === 47)
+  ) {
+    if (len > 5) {
+      let _ep0 = p.indexOf("/", 5);
+      if (_ep0 === -1) _ep0 = len;
+      const _p0 = p.slice(5, _ep0);
+      if (
+        p.charCodeAt(_ep0) === 47 &&
+        p.charCodeAt(_ep0 + 1) === 98 &&
+        p.charCodeAt(_ep0 + 2) === 97 &&
+        p.charCodeAt(_ep0 + 3) === 122 &&
+        (len === _ep0 + 4 || p.charCodeAt(_ep0 + 4) === 47)
+      ) {
+        if (len === _ep0 + 4) {
+          if (m === "GET") r.unshift({ data: $3, params: { 0: _p0 } });
         }
       }
-      if (m === "GET") r.unshift({ data: $4, params: { _: s.slice(2).join("/") } });
     }
+    if (m === "GET") r.unshift({ data: $4, params: { _: p.slice(5) } });
   }
-  if (m === "GET") r.unshift({ data: $5, params: { _: s.slice(1).join("/") } });
+  if (m === "GET") r.unshift({ data: $5, params: { _: p.slice(1) } });
   return r;
 };

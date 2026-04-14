@@ -30,33 +30,73 @@ const findRoute = /* @__PURE__ */ (() => {
     } else if (p === "/static:path/*/**") {
       if (m === "GET") return { data: $6 };
     }
-    let s = p.split("/"),
-      l = s.length;
-    if (l > 1) {
-      if (s[1] === "test") {
-        if (l > 2) {
-          if (s[2] === "foo") {
-            if (l === 4 || l === 3) {
-              if (m === "GET") return { data: $7, params: { 0: s[3] } };
-            }
-            if (m === "GET") return { data: $8, params: { _: s.slice(3).join("/") } };
+    const len = p.length;
+    if (
+      p.charCodeAt(0) === 47 &&
+      p.charCodeAt(1) === 116 &&
+      p.charCodeAt(2) === 101 &&
+      p.charCodeAt(3) === 115 &&
+      p.charCodeAt(4) === 116 &&
+      (len === 5 || p.charCodeAt(5) === 47)
+    ) {
+      if (
+        p.charCodeAt(5) === 47 &&
+        p.charCodeAt(6) === 102 &&
+        p.charCodeAt(7) === 111 &&
+        p.charCodeAt(8) === 111 &&
+        (len === 9 || p.charCodeAt(9) === 47)
+      ) {
+        if (len === 9) {
+          if (m === "GET") return { data: $7, params: { 0: undefined } };
+        }
+        if (len > 10) {
+          let _ep0 = p.indexOf("/", 10);
+          if (_ep0 === -1) _ep0 = len;
+          const _p0 = p.slice(10, _ep0);
+          if (len === _ep0) {
+            if (m === "GET") return { data: $7, params: { 0: _p0 } };
           }
         }
-        if (l === 3 || l === 2) {
-          if (m === "GET") if (l > 2) return { data: $9, params: { id: s[2] } };
-        } else if (s[3] === "y") {
-          if (l === 4) {
-            if (m === "GET") return { data: $10, params: { idY: s[2] } };
-          } else if (s[4] === "z") {
-            if (l === 5) {
-              if (m === "GET") return { data: $11, params: { idYZ: s[2] } };
-            }
-          }
-        }
-      } else if (s[1] === "wildcard") {
-        if (m === "GET") return { data: $12, params: { _: s.slice(2).join("/") } };
+        if (m === "GET") return { data: $8, params: { _: p.slice(10) } };
       }
+      if (len > 6) {
+        let _ep0 = p.indexOf("/", 6);
+        if (_ep0 === -1) _ep0 = len;
+        const _p0 = p.slice(6, _ep0);
+        if (len === _ep0) {
+          if (m === "GET") return { data: $9, params: { id: _p0 } };
+        } else if (
+          p.charCodeAt(_ep0) === 47 &&
+          p.charCodeAt(_ep0 + 1) === 121 &&
+          (len === _ep0 + 2 || p.charCodeAt(_ep0 + 2) === 47)
+        ) {
+          if (len === _ep0 + 2) {
+            if (m === "GET") return { data: $10, params: { idY: _p0 } };
+          } else if (
+            p.charCodeAt(_ep0 + 2) === 47 &&
+            p.charCodeAt(_ep0 + 3) === 122 &&
+            (len === _ep0 + 4 || p.charCodeAt(_ep0 + 4) === 47)
+          ) {
+            if (len === _ep0 + 4) {
+              if (m === "GET") return { data: $11, params: { idYZ: _p0 } };
+            }
+          }
+        }
+      }
+    } else if (
+      p.charCodeAt(0) === 47 &&
+      p.charCodeAt(1) === 119 &&
+      p.charCodeAt(2) === 105 &&
+      p.charCodeAt(3) === 108 &&
+      p.charCodeAt(4) === 100 &&
+      p.charCodeAt(5) === 99 &&
+      p.charCodeAt(6) === 97 &&
+      p.charCodeAt(7) === 114 &&
+      p.charCodeAt(8) === 100 &&
+      (len === 9 || p.charCodeAt(9) === 47)
+    ) {
+      if (m === "GET") return { data: $12, params: { _: p.slice(10) } };
     }
-    if (m === "GET") return { data: $13, params: { _: s.slice(1).join("/") } };
+    if (m === "GET") return { data: $13, params: { _: p.slice(1) } };
   };
 })();

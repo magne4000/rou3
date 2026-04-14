@@ -79,9 +79,14 @@ interface Node<T> {
 
 `compileRouter()` generates an optimized function via `new Function()`:
 
-- Inlines static routes for O(1) lookup
-- Unrolls segment checks into `split("/")`-based array access
-- Inlines regex patterns for param validation
+- Inlines static routes for O(1) lookup via `p === "/..."` equality checks
+- **Trie-based dispatch**: navigates the radix tree by character positions in `p` using `charCodeAt()` comparisons rather than splitting into an array
+- Extracts param segments with `p.indexOf("/", pos)` + `p.slice()` — no array allocation
+- Inlines regex patterns for param validation using the param expression directly
+- Generated variables: `len` (path length), `_p0/_p1/...` (captured params), `_ep0/_ep1/...` (end positions of each param segment)
+- Static node branching uses `charCodeAt` equality for each character plus a boundary check `(len===endPos || p.charCodeAt(endPos)===47)`
+- Required wildcards (`**:name` from `:path+`) get a `len > boundary` guard; optional wildcards (`**`) match unconditionally
+- Optional single-segment params (`*`) use an absent-param path emitting `undefined` when the path ends before the param
 - Compare interpreter vs compiled output in tests
 
 ### URLPattern group delimiters
