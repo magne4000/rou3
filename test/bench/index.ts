@@ -1,9 +1,17 @@
 import { bench, group, summary, compact, run, do_not_optimize } from "mitata";
 import { requests } from "./input.ts";
-import { createInstances, createAddRouteInstances } from "./impl.ts";
+import {
+  createInstances,
+  createAddRouteInstances,
+  createLargeInstances,
+  createLargeAddRouteInstances,
+  largeRequests,
+} from "./impl.ts";
 
 const instances = createInstances();
 const addRouteInstances = createAddRouteInstances();
+const largeInstances = createLargeInstances();
+const largeAddRouteInstances = createLargeAddRouteInstances();
 
 const createCase = <T>(name: string, requests: T, fn: (requests: T) => any) =>
   bench(name, function* () {
@@ -67,6 +75,45 @@ if (process.argv.includes("--detailed")) {
     });
   }
 }
+
+group("addRoute (large)", () => {
+  summary(() => {
+    compact(() => {
+      for (const [name, _addRoutes] of largeAddRouteInstances) {
+        bench(name, () => {
+          do_not_optimize(_addRoutes());
+        });
+      }
+    });
+  });
+});
+
+group("dynamic routes (large)", () => {
+  summary(() => {
+    compact(() => {
+      const nonStaticLargeRequests = largeRequests.filter((r) => r.data.includes(":"));
+      for (const [name, _find] of largeInstances) {
+        createCase(name, nonStaticLargeRequests, (requests) => {
+          for (let i = 0; i < requests.length; i++)
+            do_not_optimize(_find(requests[i].method, requests[i].path));
+        });
+      }
+    });
+  });
+});
+
+group("all routes (large)", () => {
+  summary(() => {
+    compact(() => {
+      for (const [name, _find] of largeInstances) {
+        createCase(name, largeRequests, (requests) => {
+          for (let i = 0; i < requests.length; i++)
+            do_not_optimize(_find(requests[i].method, requests[i].path));
+        });
+      }
+    });
+  });
+});
 
 await run();
 
