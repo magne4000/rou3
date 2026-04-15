@@ -128,7 +128,7 @@ export const LARGE_RESOURCES = [
   "zones",
 ] as const;
 
-// 52 patterns per resource → 100 resources × 52 = 5200 routes
+// 53 patterns per resource → 100 resources × 53 = 5300 routes
 const PATTERNS: ReadonlyArray<{ method: string; suffix: string }> = [
   // 10 static routes (no params)
   { method: "GET", suffix: "" },
@@ -183,9 +183,10 @@ const PATTERNS: ReadonlyArray<{ method: string; suffix: string }> = [
   { method: "GET", suffix: "/:id/activities" },
   { method: "GET", suffix: "/:id/activities/:subId" },
   { method: "GET", suffix: "/:id/permissions" },
-  // 2 wildcard routes
+  // 3 wildcard routes
   { method: "GET", suffix: "/**" },
   { method: "GET", suffix: "/:id/**" },
+  { method: "GET", suffix: "/:id/files/**" },
 ];
 
 export const largeRoutes = LARGE_RESOURCES.flatMap((resource) =>
@@ -282,6 +283,29 @@ export const largeRequests = [
     path: "/zones/abc123/foo/bar",
     params: { id: "abc123", _: "foo/bar" },
     data: "[GET] /zones/:id/**",
+  },
+  // static-prefix wildcard routes (/:id/files/**): static "files" beats param /:id, so
+  // these always fire before /:id/** for paths like /resource/:id/files/...
+  {
+    name: "large – early static-prefix wildcard",
+    method: "GET",
+    path: "/accounts/abc123/files/report.pdf",
+    params: { id: "abc123", _: "report.pdf" },
+    data: "[GET] /accounts/:id/files/**",
+  },
+  {
+    name: "large – mid static-prefix wildcard",
+    method: "GET",
+    path: "/messages/abc123/files/img/photo.png",
+    params: { id: "abc123", _: "img/photo.png" },
+    data: "[GET] /messages/:id/files/**",
+  },
+  {
+    name: "large – late static-prefix wildcard",
+    method: "GET",
+    path: "/zones/abc123/files/config.yaml",
+    params: { id: "abc123", _: "config.yaml" },
+    data: "[GET] /zones/:id/files/**",
   },
 ] as Array<{
   name: string;
