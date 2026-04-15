@@ -80,11 +80,11 @@ interface Node<T> {
 `compileRouter()` generates an optimized function via `new Function()`:
 
 - Inlines static routes for O(1) lookup via `p === "/..."` equality checks
-- **Trie-based dispatch**: navigates the radix tree by character positions in `p` using `charCodeAt()` comparisons rather than splitting into an array
+- **Trie-based dispatch**: navigates the radix tree by character positions in `p` using array-access `p[n]` comparisons (e.g. `switch(p[pos+1])`) rather than splitting into a segment array
 - Extracts param segments with `p.indexOf("/", pos)` + `p.slice()` — no array allocation
 - Inlines regex patterns for param validation using the param expression directly
 - Generated variables: `len` (path length), `_p0/_p1/...` (captured params), `_ep0/_ep1/...` (end positions of each param segment)
-- Static node branching uses `charCodeAt` equality for each character plus a boundary check `(len===endPos || p.charCodeAt(endPos)===47)`
+- Static node branching groups by first character with `switch(p[pos+1]){ case "t": ... }` (string array access, not `charCodeAt` char codes) plus a `startsWith` check inside each case for the full key, and a boundary check `(len===endPos || p[endPos]==="/")`
 - Required wildcards (`**:name` from `:path+`) get a `len > boundary` guard; optional wildcards (`**`) match unconditionally
 - Optional single-segment params (`*`) use an absent-param path emitting `undefined` when the path ends before the param
 - Compare interpreter vs compiled output in tests
@@ -145,7 +145,7 @@ pnpm bench:deno        # Benchmarks (deno)
 
 ## Code Conventions
 
-- **Performance-first:** `charCodeAt()` over `.startsWith()`, traditional `for` loops, null-prototype objects, `.concat()` over spread
+- **Performance-first:** `p[n]` array access over `charCodeAt()` for smaller generated code, traditional `for` loops, null-prototype objects, `.concat()` over spread
 - **Abbreviated hot-path vars:** `m` (method), `p` (path), `s` (segments), `l` (length)
 - **Internal files:** Prefixed with `_` (e.g., `_utils.ts`)
 - **ESM only**, explicit `.ts` extensions in imports
