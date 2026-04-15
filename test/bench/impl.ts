@@ -1,6 +1,7 @@
 import * as rou3 from "../../src/index.ts";
 import * as rou3C from "../../src/compiler.ts";
 import { requests, routes } from "./input.ts";
+import { largeRequests, largeRoutes } from "./input-large.ts";
 
 import * as rou3Latest from "rou3-latest";
 import * as rou3CLatest from "rou3-latest/compiler";
@@ -50,6 +51,51 @@ export function createAddRouteInstances() {
     ],
   ] as [string, () => void][];
 }
+
+export function createLargeInstances() {
+  const router = rou3.createRouter();
+  const routerLatest = rou3Latest.createRouter();
+  for (const route of largeRoutes) {
+    rou3.addRoute(router, route.method, route.path, `[${route.method}] ${route.path}`);
+    rou3Latest.addRoute(routerLatest, route.method, route.path, `[${route.method}] ${route.path}`);
+  }
+
+  const compiledLookup = rou3C.compileRouter(router);
+  const compiledLookupLatest = rou3CLatest.compileRouter(routerLatest);
+
+  return [
+    ["compileRouter (large)", (method: string, path: string) => compiledLookup(method, path)],
+    [
+      "compileRouterLatest (large)",
+      (method: string, path: string) => compiledLookupLatest(method, path),
+    ],
+  ] as [string, (method: string, path: string) => any][];
+}
+
+export function createLargeAddRouteInstances() {
+  return [
+    [
+      "addRoute (large)",
+      () => {
+        const router = rou3.createRouter();
+        for (const route of largeRoutes) {
+          rou3.addRoute(router, route.method, route.path, `[${route.method}] ${route.path}`);
+        }
+      },
+    ],
+    [
+      "addRouteLatest (large)",
+      () => {
+        const router = rou3Latest.createRouter();
+        for (const route of largeRoutes) {
+          rou3Latest.addRoute(router, route.method, route.path, `[${route.method}] ${route.path}`);
+        }
+      },
+    ],
+  ] as [string, () => void][];
+}
+
+export { largeRequests };
 
 function createFastestRouter(): (method: string, path: string) => any {
   const staticMap = Object.create(null);

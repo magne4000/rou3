@@ -6,3 +6,5 @@ coverage
 .profile
 bun.lockb
 tsconfig.tsbuildinfo
+
+package-lock.json
