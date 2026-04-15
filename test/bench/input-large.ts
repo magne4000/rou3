@@ -128,7 +128,7 @@ export const LARGE_RESOURCES = [
   "zones",
 ] as const;
 
-// 50 patterns per resource → 100 resources × 50 = 5000 routes
+// 52 patterns per resource → 100 resources × 52 = 5200 routes
 const PATTERNS: ReadonlyArray<{ method: string; suffix: string }> = [
   // 10 static routes (no params)
   { method: "GET", suffix: "" },
@@ -183,6 +183,9 @@ const PATTERNS: ReadonlyArray<{ method: string; suffix: string }> = [
   { method: "GET", suffix: "/:id/activities" },
   { method: "GET", suffix: "/:id/activities/:subId" },
   { method: "GET", suffix: "/:id/permissions" },
+  // 2 wildcard routes
+  { method: "GET", suffix: "/**" },
+  { method: "GET", suffix: "/:id/**" },
 ];
 
 export const largeRoutes = LARGE_RESOURCES.flatMap((resource) =>
@@ -257,6 +260,28 @@ export const largeRequests = [
     path: "/zones/abc123/versions/def456",
     params: { id: "abc123", subId: "def456" },
     data: "[GET] /zones/:id/versions/:subId",
+  },
+  // wildcard routes (/:id/**)
+  {
+    name: "large – early nested wildcard",
+    method: "GET",
+    path: "/accounts/abc123/foo/bar",
+    params: { id: "abc123", _: "foo/bar" },
+    data: "[GET] /accounts/:id/**",
+  },
+  {
+    name: "large – mid nested wildcard",
+    method: "GET",
+    path: "/messages/abc123/foo/bar",
+    params: { id: "abc123", _: "foo/bar" },
+    data: "[GET] /messages/:id/**",
+  },
+  {
+    name: "large – late nested wildcard",
+    method: "GET",
+    path: "/zones/abc123/foo/bar",
+    params: { id: "abc123", _: "foo/bar" },
+    data: "[GET] /zones/:id/**",
   },
 ] as Array<{
   name: string;
